@@ -1,0 +1,34 @@
+{
+  "name": "then-jsonp",
+  "version": "0.0.0",
+  "description": "Easy jsonp client for browser and node.js",
+  "browser": "./browser.js",
+  "keywords": [],
+  "dependencies": {
+    "http-response-object": "^1.0.1",
+    "promise": "^6.0.1",
+    "test-platforms": "^2.0.1",
+    "then-request": "^1.1.0"
+  },
+  "devDependencies": {
+    "browserify": "^8.1.0",
+    "cabbie": "https://github.com/ForbesLindesay/cabbie/archive/master.tar.gz",
+    "chalk": "^0.5.1",
+    "chromedriver": "^2.12.0",
+    "is-browser": "^2.0.1",
+    "throat": "^1.0.0"
+  },
+  "scripts": {
+    "test": "npm run test:node && npm run test:browser",
+    "test:ci": "npm run test:node && npm run test:browser:ci",
+    "test:node": "node test/index.js",
+    "test:browser": "node test/browser.js",
+    "test:browser:ci": "node test/browser.js sauce"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/then/then-jsonp.git"
+  },
+  "author": "ForbesLindesay",
+  "license": "MIT"
+}
