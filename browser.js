@@ -5,6 +5,8 @@ var handleQs = require('then-request/lib/handle-qs.js');
 
 var jsonpID = 0;
 
+var queues = {};
+
 module.exports = pquest;
 function pquest(method, url, options, callback) {
   var result = new Promise(function (resolve, reject) {
@@ -58,37 +60,65 @@ function pquest(method, url, options, callback) {
       options.qs[options.methodParameter || 'method'] = method;
     }
 
-
-
-    // handle query string
-    if (options.qs) {
-      url = handleQs(url, options.qs);
+    if (queues[callbackName]) {
+      queues[callbackName].push(run);
+    } else {
+      queues[callbackName] = [];
+      run();
     }
 
-    var script = document.createElement('script');
-    var head = document.getElementsByTagName('head')[0] || document.documentElement;
-    var abortTimeout;
+    function run() {
+      // handle query string
+      if (options.qs) {
+        url = handleQs(url, options.qs);
+      }
 
-    script.onerror = function () {
-      clearTimeout(abortTimeout);
-      if (callbackName in window) window[callbackName] = function () {};
-      reject(new Error('JSONP request failed'));
-    };
-    window[callbackName] = function (result) {
-      clearTimeout(abortTimeout);
-      delete window[callbackName];
-      resolve(result);
-    };
-    abortTimeout = setTimeout(function(){
-      if (callbackName in window) window[callbackName] = function () {};
-      reject(new Error('JSONP timed out'));
-    }, options.timeout || 10000);
+      var script = document.createElement('script');
+      var head = document.getElementsByTagName('head')[0] || document.documentElement;
+      var abortTimeout;
+      var done = false;
+      function onComplete(success) {
+        if (!done) {
+          done = true;
+          script.onload = script.onreadystatechange = script.onerror = null;
+          clearTimeout(abortTimeout);
+          if (callbackName in window) {
+            if (success) delete window[callbackName];
+            else window[callbackName] = function () {};
+          }
+          if (script && script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+          if (queues[callbackName].length) queues[callbackName].shift()();
+          else delete queues[callbackName];
+        }
+      }
+      script.onload = script.onreadystatechange = function () {
+        if (!this.readyState || this.readyState === "loaded" || this.readyState === "complete") {
+          onComplete();
+        }
+        setTimeout(function () {
+          reject(new Error('JSONP callback should already have been called'));
+        }, 100);
+      };
+      script.onerror = function () {
+        onComplete();
+        reject(new Error('JSONP request failed'));
+      };
+      window[callbackName] = function (result) {
+        onComplete(true);
+        resolve(result);
+      };
+      abortTimeout = setTimeout(function(){
+        onComplete();
+        reject(new Error('JSONP timed out'));
+      }, options.timeout || 10000);
 
-    script.src = url;
+      script.src = url;
+      script.async = true;
 
-    // Use insertBefore instead of appendChild to circumvent an IE6 bug.
-    // This arises when a base node is used (see jQuery bugs #2709 and #4378).
-    head.insertBefore(script, head.firstChild);
+      head.appendChild(script);
+    }
   });
   result.getBody = function () {
     return result.then(function (res) { return res.getBody(); });
