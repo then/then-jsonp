@@ -45,7 +45,6 @@ var run = function (driver) {
   }).then(function (url) {
     return driver.browser().activeWindow().navigator().navigateTo(url);
   }).then(function () {
-    return;
     var start = Date.now();
     return new Promise(function (resolve, reject) {
       function check(i) {
