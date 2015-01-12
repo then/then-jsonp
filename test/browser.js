@@ -17,11 +17,22 @@ if (process.env.CI) {
   process.exit(0);
 }
 
-var bundle = new Promise(function (resolve, reject) {
+var url = new Promise(function (resolve, reject) {
   browserify(__dirname + '/browser-entry.js').bundle(function (err, res) {
     if (err) reject(err);
     else resolve(res.toString());
   });
+}).then(function (bundle) {
+  return request('POST', 'https://tempjs.org/create', {
+    json: {
+      body: bundle
+    }
+  }).getBody('utf8').then(JSON.parse);
+}).then(function (res) {
+  return 'http://tempjs.org' + res.path;
+});
+url.done(function (url) {
+  console.log(chalk.magenta(url));
 });
 
 
@@ -30,20 +41,19 @@ var run = function (driver) {
     name: process.env.CI ? 'then-jsonp' : 'local-test',
     build: process.env.TRAVIS_JOB_ID
   }).then(function () {
-    return driver.browser().activeWindow().navigator().navigateTo('http://example.com/');
+    return url;
+  }).then(function (url) {
+    return driver.browser().activeWindow().navigator().navigateTo(url);
   }).then(function () {
-    return bundle;
-  }).then(function (code) {
-    return driver.browser().activeWindow().execute(code);
-  }).then(function () {
+    return;
     var start = Date.now();
     return new Promise(function (resolve, reject) {
-      function check() {
+      function check(i) {
         driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;').done(function (complete) {
           if (complete) resolve();
           else {
-            if (Date.now() - start > 60 * 1000) return reject(new Error('Test timed out'));
-            setTimeout(check, 500);
+            if (i > 60 * 2) return reject(new Error('Test timed out'));
+            setTimeout(check.bind(null, i + 1), 500);
           }
         }, reject);
       }
@@ -102,8 +112,8 @@ if (LOCAL) {
       platform: platform.os
     }, {
       mode: 'async',
-      debug: false,
-      httpDebug: false
+      debug: true,
+      httpDebug: true
     });
     return run(driver).then(function (result) {
       return driver.dispose({passed: result}).then(function () { return result; });
@@ -117,6 +127,8 @@ if (LOCAL) {
   .getBody('utf8').then(JSON.parse).then(function (platforms) {
     var obj = {};
     platforms.forEach(function (platform) {
+      if (process.argv[3] && process.argv[3] !== platform.api_name) return;
+      if (process.argv[4] && process.argv[4] !== platform.short_version) return;
       obj[platform.api_name] = obj[platform.api_name] || {};
       obj[platform.api_name][platform.short_version] = obj[platform.api_name][platform.short_version] || [];
       obj[platform.api_name][platform.short_version].push(platform);
@@ -128,7 +140,7 @@ if (LOCAL) {
       Object.keys(obj[browser]).sort(function (versionA, versionB) {
         return (+versionB) - (+versionA);
       }).forEach(function (version, index) {
-        if (index < 2) {
+        if (index === 0) {
           result[browser] = result[browser].concat(obj[browser][version]);
         } else {
           result[browser].push(obj[browser][version][Math.floor(Math.random() * obj[browser][version].length)]);

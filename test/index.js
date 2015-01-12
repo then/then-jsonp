@@ -11,15 +11,19 @@ pquest('GET', 'http://api.uptimerobot.com/getMonitors?apiKey=u193485-e7bb953d295
 }).then(function (result) {
   console.log(result);
   assert(result.stat === 'ok');
-  return pquest('GET', 'http://api.uptimerobot.com/getMonitors?apiKey=u193485-e7bb953d295bd66420f2f5d6&format=json', {
-    callbackName: 'jsonUptimeRobotApi',
-    callbackParameter: false,
-    skipJsonpOnServer: true,
-    qs: IS_BROWSER ? {} : {noJsonCallback: '1'}
-  });
+  if (!IS_BROWSER) {
+    return pquest('GET', 'http://api.uptimerobot.com/getMonitors?apiKey=u193485-e7bb953d295bd66420f2f5d6&format=json', {
+      callbackName: 'jsonUptimeRobotApi',
+      callbackParameter: false,
+      skipJsonpOnServer: true,
+      qs: IS_BROWSER ? {} : {noJsonCallback: '1'}
+    });
+  }
 }).then(function (result) {
-  console.log(result);
-  assert(result.stat === 'ok');
+  if (!IS_BROWSER) {
+    console.log(result);
+    assert(result.stat === 'ok');
+  }
 }).done(function () {
   console.log(IS_BROWSER ? 'browser tests passed' : chalk.green('node tests passed'));
   process && process.exit && process.exit(0);
