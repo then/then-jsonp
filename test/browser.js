@@ -273,7 +273,7 @@ if (LOCAL) {
           var isAllowed = true;
           if (!(result.api_name in allowedFailures)) {
             isAllowed = false;
-          } else if ((+result.short_version) < allowedFailures[result.api_name]) {
+          } else if ((+result.short_version) > allowedFailures[result.api_name]) {
             isAllowed = false;
           }
           console.log(chalk[isAllowed ? 'yellow' : 'red'](' - ' + result.api_name + ' ' + result.short_version + ' ' + result.os));
