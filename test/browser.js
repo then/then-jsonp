@@ -1,5 +1,7 @@
 'use strict';
 
+console.log((new Date()).toISOString());
+
 var assert = require('assert');
 var chromedriver = require('chromedriver');
 var getDriver = require('cabbie');
@@ -10,14 +12,20 @@ var platforms = require('test-platforms');
 var chalk = require('chalk');
 var request = require('then-request');
 var sourceMapper = require('source-mapper');
+var ms = require('ms');
 
+var CI_USER = 'then-jsonp-ci:72486282-b452-4666-9b65-d6e610f8794f';
+var LOCAL_USER = 'then-jsonp:beb60500-a585-440c-82e9-0888d716570d';
 var LOCAL = !process.env.CI && process.argv[2] !== 'sauce';
+var USER = LOCAL ? LOCAL_USER : CI_USER;
 
-if (process.env.CI) {
-  // TODO: make selenium tests work in CI
-  process.exit(0);
-}
 
+var allowedFailures = {
+  iphone: 5.1,
+  ipad: 5.1,
+  'internet explorer': 8,
+  firefox: 3.6
+};
 var getOriginalLocation = function (source, line) {
   return {source: source, line: line};
 };
@@ -53,19 +61,34 @@ url.done(function (url) {
 
 
 var run = function (driver) {
-  return driver.sauceJobUpdate({
+  var startTime = Date.now();
+  var opts = {
     name: process.env.CI ? 'then-jsonp' : 'local-test',
     build: process.env.TRAVIS_JOB_ID
+  };
+  return driver.sauceJobUpdate(opts).then(null, function () {
+    return driver.sauceJobUpdate(opts)
+  }).then(null, function () {
+    return driver.sauceJobUpdate(opts)
+  }).then(null, function () {
+    return driver.sauceJobUpdate(opts)
   }).then(function () {
-    return url;
+    return url
   }).then(function (url) {
-    return driver.browser().activeWindow().navigator().navigateTo(url);
+    return driver.browser().activeWindow().navigator().navigateTo(url).then(null, function () {
+      return driver.browser().activeWindow().navigator().navigateTo(url)
+    }).then(null, function () {
+      return driver.browser().activeWindow().navigator().navigateTo(url)
+    }).then(null, function () {
+      return driver.browser().activeWindow().navigator().navigateTo(url)
+    });
   }).then(function () {
-    var start = Date.now();
     return new Promise(function (resolve, reject) {
       var start = Date.now();
+      var timingOut = false;
       function check() {
         driver.browser().activeWindow().execute('return window.ERROR_HAS_OCCURED;').then(function (errorHasOcucured) {
+          if (!errorHasOcucured) return;
           return driver.browser().activeWindow().execute('return window.FIRST_ERROR;').then(function (err) {
             var loc = getOriginalLocation(err.url, err.line);
             var clientError = new Error(err.msg + ' (' + loc.source + ' line ' + loc.line + ')');
@@ -75,11 +98,16 @@ var run = function (driver) {
             throw new Error('Unknown error was thrown and not caught in the browser.');
           });
         }, function () {}).then(function () {
-          return driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;');
+          return driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;').then(null, function () {
+            return driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;');
+          }).then(null, function () {
+            return driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;')
+          });
         }).done(function (complete) {
           if (complete) resolve();
           else {
-            if (Date.now() - start > 60 * 1000) return reject(new Error('Test timed out'));
+            if (timingOut) return reject(new Error('Test timed out'));
+            if (Date.now() - start > 20 * 1000) timingOut = true;
             setTimeout(check, 500);
           }
         }, reject);
@@ -87,9 +115,15 @@ var run = function (driver) {
       check();
     });
   }).then(function () {
-    return driver.browser().activeWindow().execute('return window.TESTS_PASSED;');
+    return driver.browser().activeWindow().execute('return window.TESTS_PASSED;').then(null, function () {
+      return driver.browser().activeWindow().execute('return window.TESTS_PASSED;');
+    }).then(null, function () {
+      return driver.browser().activeWindow().execute('return window.TESTS_PASSED;');
+    }).then(null, function () {
+      return driver.browser().activeWindow().execute('return window.TESTS_PASSED;');
+    });
   }).then(function (result) {
-    return result;
+    return {passed: result, duration: Date.now() - startTime};
   });
 };
 
@@ -113,10 +147,10 @@ if (LOCAL) {
       }, 500);
     }
     run(driver).then(function (result) {
-      if (result) {
-        console.log(chalk.green('browser tests passed'));
+      if (result.passed) {
+        console.log(chalk.green('browser tests passed (' + ms(result.duration) + ')'));
       } else {
-        console.log(chalk.red('browser tests failed'));
+        console.log(chalk.red('browser tests failed (' + ms(result.duration) + ')'));
         setTimeout(function () {
           process.exit(1);
         }, 2000);
@@ -133,18 +167,39 @@ if (LOCAL) {
   }, 5000);
 } else {
   var runPlatform = throat(3, function (platform) {
-    var driver = getDriver('http://then-jsonp:beb60500-a585-440c-82e9-0888d716570d@ondemand.saucelabs.com/wd/hub', {
-      browserName: platform.api_name,
-      version: platform.short_version,
-      platform: platform.os
-    }, {
-      mode: 'async',
-      debug: true,
-      httpDebug: false
+    var driver;
+    var result = new Promise(function (resolve, reject) {
+      function attempt(index) {
+        driver = getDriver('http://' + USER + '@ondemand.saucelabs.com/wd/hub', {
+          browserName: platform.api_name,
+          version: platform.short_version,
+          platform: platform.os,
+          'record-video': false,
+          'record-screenshots': true,
+          'capture-html': false
+        }, {
+          mode: 'async',
+          debug: false,
+          httpDebug: false
+        });
+        driver._session().done(function () {
+          resolve(run(driver));
+        }, function (err) {
+          console.error('failed to get driver, retrying');
+          if (index > 3) reject(err);
+          else setTimeout(attempt.bind(null, index + 1), 2000);
+        });
+      }
+      attempt(1);
     });
-    return run(driver).then(function (result) {
-      return driver.dispose({passed: result}).then(function () { return result; });
+    return result.then(function (result) {
+      return driver.dispose({passed: result.passed}).then(null, function () {
+        return driver.dispose({passed: result.passed})
+      }).then(null, function () {
+        return driver.dispose({passed: result.passed})
+      }).then(null, function () {}).then(function () { return result; });
     }, function (err) {
+      if (!driver) throw err;
       return driver.dispose({passed: false}).then(null, function () {}).then(function () {
         throw err;
       });
@@ -156,6 +211,11 @@ if (LOCAL) {
     platforms.forEach(function (platform) {
       if (process.argv[3] && process.argv[3] !== platform.api_name) return;
       if (process.argv[4] && process.argv[4] !== platform.short_version) return;
+      if (process.argv.length < 4) {
+      if (platform.short_version === 'dev' || platform.short_version === 'beta') return;
+        if (platform.api_name === 'chrome' && (+platform.short_version) < 35 && (+platform.short_version) > 5 && (+platform.short_version) % 5 !== 0) return;
+        if (platform.api_name === 'firefox' && (+platform.short_version) < 30 && (+platform.short_version) > 5 && (+platform.short_version) % 5 !== 0) return;
+      }
       obj[platform.api_name] = obj[platform.api_name] || {};
       obj[platform.api_name][platform.short_version] = obj[platform.api_name][platform.short_version] || [];
       obj[platform.api_name][platform.short_version].push(platform);
@@ -167,11 +227,7 @@ if (LOCAL) {
       Object.keys(obj[browser]).sort(function (versionA, versionB) {
         return (+versionB) - (+versionA);
       }).forEach(function (version, index) {
-        if (index === 0) {
-          result[browser] = result[browser].concat(obj[browser][version]);
-        } else {
-          result[browser].push(obj[browser][version][Math.floor(Math.random() * obj[browser][version].length)]);
-        }
+        result[browser].push(obj[browser][version][Math.floor(Math.random() * obj[browser][version].length)]);
       });
     });
     return result;
@@ -186,11 +242,11 @@ if (LOCAL) {
           }
           var platform = platforms[key][i];
           runPlatform(platform).then(function (result) {
-            if (result) {
-              console.log(key + ' ' + platform.short_version + ' ' + platform.os + ' passed');
+            if (result.passed) {
+              console.log(key + ' ' + platform.short_version + ' ' + platform.os + ' passed (' + ms(result.duration) + ')');
               next(i + 1);
             } else {
-              console.log(chalk.red(key + ' ' + platform.short_version + ' ' + platform.os + ' failed'));
+              console.log(chalk.red(key + ' ' + platform.short_version + ' ' + platform.os + ' failed (' + ms(result.duration) + ')'));
               resolve(platform);
             }
           }, function (err) {
@@ -206,13 +262,8 @@ if (LOCAL) {
         next(0);
       });
     }));
-    var allowedFailures = {
-      iphone: 5.1,
-      ipad: 5.1,
-      android: 5.0,
-      'internet explorer': 8
-    };
     results.done(function (results) {
+      console.log((new Date()).toISOString());
       var failed = false;
       if (results.some(function (result) { return result !== true; })) {
         console.log(chalk.red('test failures:'));
@@ -220,7 +271,7 @@ if (LOCAL) {
       results.forEach(function (result) {
         if (result !== true) {
           var isAllowed = true;
-          if ((result.api_name in allowedFailures)) {
+          if (!(result.api_name in allowedFailures)) {
             isAllowed = false;
           } else if ((+result.short_version) < allowedFailures[result.api_name]) {
             isAllowed = false;
