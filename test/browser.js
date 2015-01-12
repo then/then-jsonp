@@ -25,7 +25,8 @@ var url = new Promise(function (resolve, reject) {
 }).then(function (bundle) {
   return request('POST', 'https://tempjs.org/create', {
     json: {
-      body: bundle
+      body: bundle,
+      libraries: ['https://cdn.rawgit.com/ForbesLindesay/log-to-screen/c95691617af794f738826145f3f2498d4f4cab09/index.js']
     }
   }).getBody('utf8').then(JSON.parse);
 }).then(function (res) {
@@ -47,12 +48,21 @@ var run = function (driver) {
   }).then(function () {
     var start = Date.now();
     return new Promise(function (resolve, reject) {
-      function check(i) {
-        driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;').done(function (complete) {
+      var start = Date.now();
+      function check() {
+        driver.browser().activeWindow().execute('return window.ERROR_HAS_OCCURED;').then(function (errorHasOcucured) {
+          return driver.browser().activeWindow().execute('return window.FIRST_ERROR;').then(function (err) {
+            throw new Error(err.msg + ' ' + err.url + ' line ' + err.line);
+          }, function () {
+            throw new Error('Unknown error was thrown and not caught in the browser.');
+          });
+        }, function () {}).then(function () {
+          return driver.browser().activeWindow().execute('return window.TESTS_COMPLETE;');
+        }).done(function (complete) {
           if (complete) resolve();
           else {
-            if (i > 60 * 2) return reject(new Error('Test timed out'));
-            setTimeout(check.bind(null, i + 1), 500);
+            if (Date.now() - start > 60 * 1000) return reject(new Error('Test timed out'));
+            setTimeout(check, 500);
           }
         }, reject);
       }
@@ -86,9 +96,9 @@ if (LOCAL) {
     }
     run(driver).then(function (result) {
       if (result) {
-        console.log('browser tests passed');
+        console.log(chalk.green('browser tests passed'));
       } else {
-        console.log('browser tests failed');
+        console.log(chalk.red('browser tests failed'));
         setTimeout(function () {
           process.exit(1);
         }, 2000);
@@ -112,7 +122,7 @@ if (LOCAL) {
     }, {
       mode: 'async',
       debug: true,
-      httpDebug: true
+      httpDebug: false
     });
     return run(driver).then(function (result) {
       return driver.dispose({passed: result}).then(function () { return result; });
