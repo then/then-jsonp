@@ -1,6 +1,6 @@
 {
   "name": "then-jsonp",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Easy jsonp client for browser and node.js",
   "browser": "./browser.js",
   "keywords": [],
