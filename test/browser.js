@@ -9,6 +9,7 @@ var browserify = require('browserify');
 var platforms = require('test-platforms');
 var chalk = require('chalk');
 var request = require('then-request');
+var sourceMapper = require('source-mapper');
 
 var LOCAL = !process.env.CI && process.argv[2] !== 'sauce';
 
@@ -17,10 +18,24 @@ if (process.env.CI) {
   process.exit(0);
 }
 
+var getOriginalLocation = function (source, line) {
+  return {source: source, line: line};
+};
 var url = new Promise(function (resolve, reject) {
-  browserify(__dirname + '/browser-entry.js').bundle(function (err, res) {
-    if (err) reject(err);
-    else resolve(res.toString());
+  browserify({entries: [__dirname + '/browser-entry.js'], debug: true}).bundle(function (err, res) {
+    if (err) return reject(err);
+    var src = res.toString();
+    var extracted = sourceMapper.extract(src);
+    var consumer = sourceMapper.consumer(extracted.map);
+    getOriginalLocation = function (source, line) {
+      var res = consumer.originalPositionFor({line: line, column: 0});
+      if (res.source === null || res.line === null) {
+        return {source: source, line: line};
+      } else {
+        return {source: res.source, line: res.line};
+      }
+    };
+    resolve(src);
   });
 }).then(function (bundle) {
   return request('POST', 'https://tempjs.org/create', {
@@ -52,7 +67,10 @@ var run = function (driver) {
       function check() {
         driver.browser().activeWindow().execute('return window.ERROR_HAS_OCCURED;').then(function (errorHasOcucured) {
           return driver.browser().activeWindow().execute('return window.FIRST_ERROR;').then(function (err) {
-            throw new Error(err.msg + ' ' + err.url + ' line ' + err.line);
+            var loc = getOriginalLocation(err.url, err.line);
+            var clientError = new Error(err.msg + ' (' + loc.source + ' line ' + loc.line + ')');
+            clientError.isClientError = true;
+            throw clientError;
           }, function () {
             throw new Error('Unknown error was thrown and not caught in the browser.');
           });
@@ -105,7 +123,7 @@ if (LOCAL) {
       }
       return driver.dispose();
     }, function (err) {
-      console.log('browser tests failed');
+      console.log(chalk.red('browser tests failed'));
       return driver.dispose().then(null, function () {}).then(function () {
         setTimeout(function () {
           throw err;
@@ -176,7 +194,11 @@ if (LOCAL) {
               resolve(platform);
             }
           }, function (err) {
-            console.log(chalk.yellow(key + ' ' + platform.short_version + ' ' + platform.os + ' errored'));
+            if(err.isClientError) {
+              console.log(chalk.red(key + ' ' + platform.short_version + ' ' + platform.os + ' failed'));
+            } else {
+              console.log(chalk.yellow(key + ' ' + platform.short_version + ' ' + platform.os + ' errored'));
+            }
             console.error(err.stack || err);
             resolve(platform);
           });
@@ -188,17 +210,23 @@ if (LOCAL) {
       iphone: 5.1,
       ipad: 5.1,
       android: 5.0,
-      'internet explorer': 9
+      'internet explorer': 8
     };
     results.done(function (results) {
       var failed = false;
+      if (results.some(function (result) { return result !== true; })) {
+        console.log(chalk.red('test failures:'));
+      }
       results.forEach(function (result) {
         if (result !== true) {
+          var isAllowed = true;
           if ((result.api_name in allowedFailures)) {
-            failed = true;
+            isAllowed = false;
           } else if ((+result.short_version) < allowedFailures[result.api_name]) {
-            failed = true;
+            isAllowed = false;
           }
+          console.log(chalk[isAllowed ? 'yellow' : 'red'](' - ' + result.api_name + ' ' + result.short_version + ' ' + result.os));
+          if (!isAllowed) failed = true;
         }
       });
       if (failed) {

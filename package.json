@@ -16,6 +16,7 @@
     "chalk": "^0.5.1",
     "chromedriver": "^2.12.0",
     "is-browser": "^2.0.1",
+    "source-mapper": "^1.0.1",
     "throat": "^1.0.0"
   },
   "scripts": {
