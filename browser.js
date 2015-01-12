@@ -96,10 +96,10 @@ function pquest(method, url, options, callback) {
       script.onload = script.onreadystatechange = function () {
         if (!this.readyState || this.readyState === "loaded" || this.readyState === "complete") {
           onComplete();
+          setTimeout(function () {
+            reject(new Error('JSONP callback should already have been called'));
+          }, 100);
         }
-        setTimeout(function () {
-          reject(new Error('JSONP callback should already have been called'));
-        }, 100);
       };
       script.onerror = function () {
         onComplete();
