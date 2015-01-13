@@ -5,20 +5,13 @@
   "browser": "./browser.js",
   "keywords": [],
   "dependencies": {
-    "http-response-object": "^1.0.1",
     "promise": "^6.0.1",
-    "test-platforms": "^2.0.1",
     "then-request": "^1.1.0"
   },
   "devDependencies": {
-    "browserify": "^8.1.0",
-    "cabbie": "https://github.com/ForbesLindesay/cabbie/archive/master.tar.gz",
     "chalk": "^0.5.1",
-    "chromedriver": "^2.12.0",
     "is-browser": "^2.0.1",
-    "ms": "^0.7.0",
-    "source-mapper": "^1.0.1",
-    "throat": "^1.0.0"
+    "sauce-test": "0.0.1"
   },
   "scripts": {
     "test": "npm run test:node && npm run test:browser",

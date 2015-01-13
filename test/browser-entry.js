@@ -7,5 +7,3 @@ process.exit = function (code) {
   window.TESTS_PASSED = code === 0;
   window.TESTS_COMPLETE = true;
 };
-
-require('./index.js');
