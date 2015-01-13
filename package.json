@@ -11,6 +11,7 @@
   "devDependencies": {
     "chalk": "^0.5.1",
     "is-browser": "^2.0.1",
+    "ms": "^0.7.0",
     "sauce-test": "0.0.1"
   },
   "scripts": {
