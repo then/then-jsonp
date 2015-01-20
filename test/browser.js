@@ -38,7 +38,7 @@ function filterPlatforms(platform) {
     if (browser === 'chrome' && (+version) < 35 && (+version) > 5 && (+version) % 5 !== 0) return false;
     if (browser === 'firefox' && (+version) < 30 && (+version) > 5 && (+version) % 5 !== 0) return false;
   }
-  return true;
+  return !isAllowedFailure(platform);
 }
 function choosePlatforms(platforms) {
   return [platforms[Math.floor(Math.random() * platforms.length)]];
@@ -70,7 +70,6 @@ if (LOCAL) {
   });
 } else {
   var failedBrowsers = [];
-  var hasFailed = false;
   run(ENTRIES, 'saucelabs', {
     username: USER,
     accessKey: ACCESS_KEY,
@@ -98,24 +97,20 @@ if (LOCAL) {
     onBrowserResults: function (browser, results) {
       if (results.every(function (result) { return result.passed; })) {
         console.log(chalk.green(browser + ' all passsed'));
-      } else if (results.every(function (result) { return result.passed || isAllowedFailure(result); })) {
-        console.log(chalk.yellow(browser + ' expected failures'));
       } else {
-        hasFailed = true;
         console.log(chalk.red(browser + ' some failures'));
         console.dir(results[0]);
       }
     }
   }).done(function (results) {
     if (failedBrowsers.length) {
-      console.log(chalk.yellow('failed browsers'));
+      console.log(chalk.red('failed browsers'));
       failedBrowsers.forEach(function (res) {
-        var color = isAllowedFailure(res) ? 'yellow' : 'red';
-        console.log(chalk[color](res.browserName + ' ' + res.version + ' ' + res.platform +
-                    ' (' + ms(res.duration) + ')'));
+        console.log(chalk.red(res.browserName + ' ' +
+                              res.version + ' ' +
+                              res.platform +
+                              ' (' + ms(res.duration) + ')'));
       });
-    }
-    if (hasFailed) {
       console.log(chalk.red('Tests Failed'));
       process.exit(1);
     } else {
