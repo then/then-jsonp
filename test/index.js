@@ -1,8 +1,8 @@
 'use strict';
 
 var assert = require('assert');
-var chalk = require('chalk');
 var IS_BROWSER = require('is-browser');
+var result = require('test-result');
 var pquest = require('../');
 
 pquest('GET', 'https://api.uptimerobot.com/getMonitors?apiKey=u193485-e7bb953d295bd66420f2f5d6&format=json', {
@@ -25,10 +25,10 @@ pquest('GET', 'https://api.uptimerobot.com/getMonitors?apiKey=u193485-e7bb953d29
     assert(result.stat === 'ok');
   }
 }).done(function () {
-  console.log(IS_BROWSER ? 'browser tests passed' : chalk.green('node tests passed'));
-  process && process.exit && process.exit(0);
+  result.pass(IS_BROWSER ? 'browser' : 'node');
 }, function (err) {
-  console.log(IS_BROWSER ? 'browser tests failed' : chalk.green('node tests failed'));
-  console.error(err.stack || err.message || err);
-  process && process.exit && process.exit(1);
+  if (typeof console !== 'undefined' && typeof console.log === 'function') {
+    console.log(err.stack || err.message || err);
+  }
+  result.fail(IS_BROWSER ? 'browser' : 'node');
 });

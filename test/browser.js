@@ -6,7 +6,7 @@ var ms = require('ms');
 var chalk = require('chalk');
 var run = require('sauce-test');
 
-var ENTRIES = [require.resolve('./browser-entry.js'), require.resolve('./index.js')];
+var ENTRIES = [require.resolve('./index.js')];
 
 var CI_USER = 'then-jsonp-ci';
 var LOCAL_USER = 'then-jsonp';
@@ -50,8 +50,7 @@ function isAllowedFailure(platform) {
 
 if (LOCAL) {
   run(ENTRIES, 'chromedriver', {
-    testComplete: 'return window.TESTS_COMPLETE;',
-    testPassed: 'return window.TESTS_PASSED;',
+    browserify: true,
     disableSSL: true
   }).done(function (res) {
     if (res.passed) {
@@ -71,10 +70,10 @@ if (LOCAL) {
 } else {
   var failedBrowsers = [];
   run(ENTRIES, 'saucelabs', {
+    parallel: 4,
+    browserify: true,
     username: USER,
     accessKey: ACCESS_KEY,
-    testComplete: 'return window.TESTS_COMPLETE;',
-    testPassed: 'return window.TESTS_PASSED;',
     disableSSL: true,
     capabilities: CAPABILITIES,
     filterPlatforms: filterPlatforms,
@@ -99,7 +98,6 @@ if (LOCAL) {
         console.log(chalk.green(browser + ' all passsed'));
       } else {
         console.log(chalk.red(browser + ' some failures'));
-        console.dir(results[0]);
       }
     }
   }).done(function (results) {

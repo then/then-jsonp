@@ -12,7 +12,8 @@
     "chalk": "^0.5.1",
     "is-browser": "^2.0.1",
     "ms": "^0.7.0",
-    "sauce-test": "0.0.2"
+    "sauce-test": "0.0.6",
+    "test-result": "^2.0.0"
   },
   "scripts": {
     "test": "npm run test:node && npm run test:browser",
