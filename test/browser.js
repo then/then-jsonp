@@ -1,10 +1,15 @@
 'use strict';
 
+
+if (process.env.CI && process.version.indexOf('v5') !== 0) {
+  // only run the browser tests once
+  process.exit(0);
+}
+
 console.log((new Date()).toISOString());
 
-var ms = require('ms');
-var chalk = require('chalk');
 var run = require('sauce-test');
+var testResult = require('test-result');
 
 var ENTRIES = [require.resolve('./index.js')];
 
@@ -23,96 +28,31 @@ var allowedFailures = {
   firefox: 3.6
 };
 
-var CAPABILITIES = {
-  'record-video': false,
-  'record-screenshots': true,
-  'capture-html': false
-};
-function filterPlatforms(platform) {
-  var browser = platform.browserName;
-  var version = platform.version;
-  if (process.argv[3] && process.argv[3] !== browser) return false;
-  if (process.argv[4] && process.argv[4] !== version) return false;
-  if (process.argv.length < 4) {
-    if (version === 'dev' || version === 'beta') return false;
-    if (browser === 'chrome' && (+version) < 35 && (+version) > 5 && (+version) % 5 !== 0) return false;
-    if (browser === 'firefox' && (+version) < 30 && (+version) > 5 && (+version) % 5 !== 0) return false;
-  }
+function filterPlatforms(platform, defaultFilter) {
+  // exclude some arbitrary browsers to make tests
+  // run faster.  Also excludes beta versions of browsers
+  if (!defaultFilter(platform)) return false;
   return !isAllowedFailure(platform);
-}
-function choosePlatforms(platforms) {
-  return [platforms[Math.floor(Math.random() * platforms.length)]];
 }
 function isAllowedFailure(platform) {
   return (platform.browserName in allowedFailures) &&
     ((+platform.version) <= allowedFailures[platform.browserName]);
 }
 
-if (LOCAL) {
-  run(ENTRIES, 'chromedriver', {
-    browserify: true,
-    disableSSL: true
-  }).done(function (res) {
-    if (res.passed) {
-      console.log(chalk.green('browser tests passed (' + ms(res.duration) + ')'));
-    } else {
-      console.log(chalk.red('browser tests failed (' + ms(res.duration) + ')'));
-      process.exit(1);
-    }
-  }, function (err) {
-    if (err.duration) {
-      console.log(chalk.red('browser tests failed (' + ms(err.duration) + ')'));
-    } else {
-      console.log(chalk.red('browser tests failed'));
-    }
-    throw err;
-  });
-} else {
-  var failedBrowsers = [];
-  run(ENTRIES, 'saucelabs', {
-    parallel: 4,
-    browserify: true,
-    username: USER,
-    accessKey: ACCESS_KEY,
-    disableSSL: true,
-    capabilities: CAPABILITIES,
-    filterPlatforms: filterPlatforms,
-    choosePlatforms: choosePlatforms,
-    bail: true,
-    timeout: '15s',
-    onResult: function (res) {
-      if (res.passed) {
-        console.log(res.browserName + ' ' + res.version + ' ' + res.platform +
-                    ' passed (' + ms(res.duration) + ')');
-      } else {
-        failedBrowsers.push(res);
-        console.log(chalk.red(res.browserName + ' ' + res.version + ' ' + res.platform +
-                              ' failed (' + ms(res.duration) + ')'));
-        if (res.err) {
-          console.error(res.err.stack || res.err.message || res.err);
-        }
-      }
-    },
-    onBrowserResults: function (browser, results) {
-      if (results.every(function (result) { return result.passed; })) {
-        console.log(chalk.green(browser + ' all passsed'));
-      } else {
-        console.log(chalk.red(browser + ' some failures'));
-      }
-    }
-  }).done(function (results) {
-    if (failedBrowsers.length) {
-      console.log(chalk.red('failed browsers'));
-      failedBrowsers.forEach(function (res) {
-        console.log(chalk.red(res.browserName + ' ' +
-                              res.version + ' ' +
-                              res.platform +
-                              ' (' + ms(res.duration) + ')'));
-      });
-      console.log(chalk.red('Tests Failed'));
-      process.exit(1);
-    } else {
-      console.log(chalk.green('Tests Passed'));
-    }
-  });
-}
+var failedBrowsers = [];
+run(ENTRIES, LOCAL ? 'chromedriver' : 'saucelabs', {
+  parallel: 4,
+  browserify: true,
+  username: USER,
+  accessKey: ACCESS_KEY,
+  disableSSL: true,
+  filterPlatforms: filterPlatforms,
+  bail: true,
+  timeout: '15s',
+}).done(function (result) {
+  if (result.passed) {
+    testResult.pass('browser tests');
+  } else {
+    testResult.fail('browser tests');
+  }
+});

@@ -9,10 +9,8 @@
     "then-request": "^2.0.1"
   },
   "devDependencies": {
-    "chalk": "^1.1.1",
     "is-browser": "^2.0.1",
-    "ms": "^0.7.0",
-    "sauce-test": "1.0.0",
+    "sauce-test": "^1.0.0",
     "test-result": "^2.0.0"
   },
   "scripts": {
