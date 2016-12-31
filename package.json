@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "is-browser": "^2.0.1",
-    "sauce-test": "^1.0.0",
+    "sauce-test": "^1.2.1",
     "test-result": "^2.0.0"
   },
   "scripts": {
